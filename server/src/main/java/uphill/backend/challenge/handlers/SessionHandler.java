@@ -1,5 +1,6 @@
 package uphill.backend.challenge.handlers;
 
+import uphill.backend.challenge.model.Graph;
 import uphill.backend.challenge.model.Session;
 
 import java.io.BufferedReader;
@@ -19,12 +20,15 @@ public class SessionHandler implements Runnable {
 
     private static final Map<UUID, Session> sessions = new HashMap<>();
 
+    private final Graph graph;
+
     private static final int SESSION_TIMEOUT = 30000; // 30 seconds
 
-    public SessionHandler(Socket clientSocket) {
+    public SessionHandler(Socket clientSocket, Graph graph) {
         this.clientSocket = clientSocket;
         this.sessionId = UUID.randomUUID();
         this.lastActivityTime = System.currentTimeMillis();
+        this.graph = graph;
     }
 
     @Override
@@ -75,7 +79,7 @@ public class SessionHandler implements Runnable {
         }
     }
 
-    private static void handleCommand(Session session, String command) {
+    private void handleCommand(Session session, String command) {
         String[] parts = command.split(" ");
         String keyword = parts[0].replace(",", "");
 
@@ -86,8 +90,61 @@ public class SessionHandler implements Runnable {
             case "BYE":
                 handleByeCommand(session, parts);
                 break;
+            case "ADD":
+                handleAddCommand(session, parts);
+                break;
+            case "REMOVE":
+                handleRemoveCommand(session, parts);
+                break;
             default:
                 session.send("SORRY, I DID NOT UNDERSTAND THAT");
+        }
+    }
+
+    private void handleRemoveCommand(Session session, String[] parts) {
+        if (parts.length < 2) {
+            session.send("SORRY, I DID NOT UNDERSTAND THAT");
+            return;
+        }
+        String action = parts[1];
+        String nodeName;
+        if (action.equals("NODE")) {
+            nodeName = parts[2];
+            graph.removeNode(nodeName, session);
+        } else if (action.equals("EDGE")) {
+            if (parts.length < 4) {
+                session.send("SORRY, I DID NOT UNDERSTAND THAT");
+                return;
+            }
+            String sourceNodeName = parts[2];
+            String destinationNodeName = parts[3];
+            graph.removeEdge(sourceNodeName, destinationNodeName, session);
+        } else {
+            session.send("SORRY, I DID NOT UNDERSTAND THAT");
+        }
+    }
+
+    private void handleAddCommand(Session session, String[] parts) {
+        if (parts.length < 2) {
+            session.send("SORRY, I DID NOT UNDERSTAND THAT");
+            return;
+        }
+
+        String action = parts[1];
+        String nodeName = parts[2];
+        if (action.equals("NODE")) {
+            graph.addNode(nodeName, session);
+        } else if (action.equals("EDGE")) {
+            if (parts.length < 4) {
+                session.send("SORRY, I DID NOT UNDERSTAND THAT");
+                return;
+            }
+            String sourceNodeName = parts[2];
+            String destinationNodeName = parts[3];
+            int weight = Integer.parseInt(parts[4]);
+            graph.addEdge(sourceNodeName, destinationNodeName, weight, session);
+        } else {
+            session.send("SORRY, I DID NOT UNDERSTAND THAT");
         }
     }
 
