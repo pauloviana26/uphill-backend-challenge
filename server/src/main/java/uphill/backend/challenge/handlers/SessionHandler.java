@@ -96,9 +96,22 @@ public class SessionHandler implements Runnable {
             case "REMOVE":
                 handleRemoveCommand(session, parts);
                 break;
+            case "SHORTEST":
+                handleShortestPathCommand(session, parts);
+                break;
             default:
                 session.send("SORRY, I DID NOT UNDERSTAND THAT");
         }
+    }
+
+    private void handleShortestPathCommand(Session session, String[] parts) {
+        if (parts.length < 3) {
+            session.send("SORRY, I DID NOT UNDERSTAND THAT");
+            return;
+        }
+        String sourceNodeName = parts[2];
+        String destinationNodeName = parts[3];
+        graph.shortestPath(sourceNodeName, destinationNodeName, session);
     }
 
     private void handleRemoveCommand(Session session, String[] parts) {
