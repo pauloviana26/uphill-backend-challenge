@@ -99,9 +99,22 @@ public class SessionHandler implements Runnable {
             case "SHORTEST":
                 handleShortestPathCommand(session, parts);
                 break;
+            case "CLOSER":
+                handleCloserThanCommand(session, parts);
+                break;
             default:
                 session.send("SORRY, I DID NOT UNDERSTAND THAT");
         }
+    }
+
+    private void handleCloserThanCommand(Session session, String[] parts) {
+        if (parts.length < 3) {
+            session.send("SORRY, I DID NOT UNDERSTAND THAT");
+            return;
+        }
+        String weight = parts[2];
+        String sourceNodeName = parts[3];
+        graph.findNodesCloserThan(Integer.parseInt(weight), sourceNodeName, session);
     }
 
     private void handleShortestPathCommand(Session session, String[] parts) {
