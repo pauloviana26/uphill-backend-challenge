@@ -2,6 +2,7 @@ package uphill.backend.challenge.model;
 
 import java.util.*;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
 
 public class Graph {
 
@@ -9,6 +10,9 @@ public class Graph {
     private Set<String> nodes = new HashSet<>();
 
     private Map<String, Set<Edge>> edges = new HashMap<>();
+
+    public Graph() {
+    }
 
     public int size() {
         return nodes.size();
@@ -176,6 +180,24 @@ public class Graph {
         }
 
         unvisited.remove(currentNode);
+    }
+
+    public void findNodesCloserThan(int weight, String sourceNodeName, Session session) {
+        this.lock.readLock().lock();
+        List<String> nodes;
+        try {
+            Map<String, Integer> weightedGraph = calculateWeightsInGraph(sourceNodeName, UUID.randomUUID().toString(), (node, weightedNodes) ->
+                    weightedNodes.get(node) < weight);
+            nodes = weightedGraph.entrySet().stream().filter(entry ->
+                    entry.getValue() < weight).filter(entry ->
+                    !(entry.getKey()).equals(sourceNodeName))
+                    .map(Map.Entry::getKey)
+                    .sorted(Comparator.naturalOrder())
+                    .collect(Collectors.toList());
+        } finally {
+            this.lock.readLock().unlock();
+        }
+        session.send(String.join(",", nodes));
     }
 
     interface CalculationStopCheck {
