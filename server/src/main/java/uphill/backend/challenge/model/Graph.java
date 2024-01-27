@@ -108,7 +108,7 @@ public class Graph {
                 return;
             }
 
-            weight = (Integer) calculateWeightsInGraph(sourceNodeName, destinationNodeName, (node, weightedNodes) ->
+            weight = calculateWeightsInGraph(sourceNodeName, destinationNodeName, (node, weightedNodes) ->
                     !node.equals(destinationNodeName)).get(destinationNodeName);
         } finally {
             lock.writeLock().unlock();
