@@ -1,6 +1,7 @@
 package uphill.backend.challenge;
 
 import uphill.backend.challenge.handlers.SessionHandler;
+import uphill.backend.challenge.model.Graph;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -17,7 +18,8 @@ public class Server {
                 Socket clientSocket = serverSocket.accept();
 
                 // Start a new session for each client
-                SessionHandler sessionHandler = new SessionHandler(clientSocket);
+                Graph graph = new Graph();
+                SessionHandler sessionHandler = new SessionHandler(clientSocket, graph);
                 Thread sessionThread = new Thread(sessionHandler);
                 sessionThread.start();
             }
