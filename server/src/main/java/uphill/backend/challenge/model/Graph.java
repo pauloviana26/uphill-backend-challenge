@@ -1,6 +1,7 @@
 package uphill.backend.challenge.model;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
@@ -9,7 +10,7 @@ public class Graph {
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private Set<String> nodes = new HashSet<>();
 
-    private Map<String, Set<Edge>> edges = new HashMap<>();
+    private Map<String, Set<Edge>> edges = new ConcurrentHashMap<>();
 
     public Graph() {
     }
@@ -24,73 +25,73 @@ public class Graph {
 
     public void addNode(String nodeName, Session session) {
         lock.writeLock().lock();
-        if (nodes.contains(nodeName)) {
-            session.send("ERROR: NODE ALREADY EXISTS");
-        } else {
-            try {
-                nodes.add(nodeName);
-                session.send("NODE ADDED");
-            } finally {
-                lock.writeLock().unlock();
+        try {
+            if (nodes.contains(nodeName)) {
+                session.send("ERROR: NODE ALREADY EXISTS");
+                return;
             }
+            nodes.add(nodeName);
+            session.send("NODE ADDED");
+        } finally {
+            lock.writeLock().unlock();
         }
     }
 
     public void addEdge(String sourceNodeName, String destinationNodeName, int weight, Session session) {
         lock.writeLock().lock();
-        if (!nodes.contains(sourceNodeName) || !nodes.contains(destinationNodeName)) {
-            session.send("ERROR: NODE NOT FOUND");
-        } else {
-            try {
-                Edge edge = new Edge(sourceNodeName, destinationNodeName, weight);
-                Set<Edge> toEdges = edges.computeIfAbsent(sourceNodeName, k -> new HashSet<>());
-                toEdges.add(edge);
-                session.send("EDGE ADDED");
-            } finally {
-                lock.writeLock().unlock();
+        try {
+            if (!nodes.contains(sourceNodeName) || !nodes.contains(destinationNodeName)) {
+                session.send("ERROR: NODE NOT FOUND");
+                return;
             }
+            Edge edge = new Edge(sourceNodeName, destinationNodeName, weight);
+            Set<Edge> toEdges = edges.computeIfAbsent(sourceNodeName, k -> new HashSet<>());
+            toEdges.add(edge);
+            session.send("EDGE ADDED");
+        } finally {
+            lock.writeLock().unlock();
         }
     }
 
     public void removeNode(String nodeName, Session session) {
         lock.writeLock().lock();
-        if (!nodes.contains(nodeName)) {
-            session.send("ERROR: NODE NOT FOUND");
-        } else {
-            try {
-                boolean removed = nodes.remove(nodeName);
-                if (removed) {
-                    edges.remove(nodeName);
-                }
-                session.send("NODE REMOVED");
-            } finally {
-                lock.writeLock().unlock();
+        try {
+            if (!nodes.contains(nodeName)) {
+                session.send("ERROR: NODE NOT FOUND");
+                return;
             }
+            boolean removed = nodes.remove(nodeName);
+            if (removed) {
+                edges.remove(nodeName);
+            }
+            session.send("NODE REMOVED");
+        } finally {
+            lock.writeLock().unlock();
         }
     }
 
     public void removeEdge(String sourceNodeName, String destinationNodeName, Session session) {
         lock.writeLock().lock();
-        if (!nodes.contains(sourceNodeName) || !nodes.contains(destinationNodeName)) {
-            session.send("ERROR: NODE NOT FOUND");
-        } else {
-            try {
-                Set<Edge> fromEdges = edges.get(sourceNodeName);
-                if (fromEdges != null) {
-                    Set<Edge> toRemove = new HashSet<>();
-
-                    for (Edge edge : fromEdges) {
-                        if (edge.getTo().equals(destinationNodeName)) {
-                            toRemove.add(edge);
-                        }
-                    }
-
-                    fromEdges.removeAll(toRemove);
-                    session.send("EDGE REMOVED");
-                }
-            } finally {
-                lock.writeLock().unlock();
+        try {
+            if (!nodes.contains(sourceNodeName) || !nodes.contains(destinationNodeName)) {
+                session.send("ERROR: NODE NOT FOUND");
+                return;
             }
+            Set<Edge> fromEdges = edges.get(sourceNodeName);
+            if (fromEdges != null) {
+                Set<Edge> toRemove = new HashSet<>();
+
+                for (Edge edge : fromEdges) {
+                    if (edge.getTo().equals(destinationNodeName)) {
+                        toRemove.add(edge);
+                    }
+                }
+
+                fromEdges.removeAll(toRemove);
+                session.send("EDGE REMOVED");
+            }
+        } finally {
+            lock.writeLock().unlock();
         }
     }
 
@@ -100,6 +101,7 @@ public class Graph {
         try {
             if (!nodes.contains(sourceNodeName) || !nodes.contains(destinationNodeName)) {
                 session.send("ERROR: NODE NOT FOUND");
+                return;
             }
 
             if (sourceNodeName.equals(destinationNodeName)) {
@@ -189,8 +191,8 @@ public class Graph {
             Map<String, Integer> weightedGraph = calculateWeightsInGraph(sourceNodeName, UUID.randomUUID().toString(), (node, weightedNodes) ->
                     weightedNodes.get(node) < weight);
             nodes = weightedGraph.entrySet().stream().filter(entry ->
-                    entry.getValue() < weight).filter(entry ->
-                    !(entry.getKey()).equals(sourceNodeName))
+                            entry.getValue() < weight).filter(entry ->
+                            !(entry.getKey()).equals(sourceNodeName))
                     .map(Map.Entry::getKey)
                     .sorted(Comparator.naturalOrder())
                     .collect(Collectors.toList());
