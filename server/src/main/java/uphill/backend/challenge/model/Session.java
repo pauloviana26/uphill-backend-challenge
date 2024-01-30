@@ -7,7 +7,7 @@ public class Session {
     private final UUID sessionId;
     private final PrintWriter out;
     private String name;
-    private long startTime;
+    private final long startTime;
 
     public Session(UUID sessionId, PrintWriter out, long startTime) {
         this.sessionId = sessionId;

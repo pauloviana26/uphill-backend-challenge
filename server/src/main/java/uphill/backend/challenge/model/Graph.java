@@ -1,37 +1,35 @@
 package uphill.backend.challenge.model;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 public class Graph {
 
+    public static final String ERROR_NODE_ALREADY_EXISTS = "ERROR: NODE ALREADY EXISTS";
+    public static final String NODE_ADDED = "NODE ADDED";
+    public static final String ERROR_NODE_NOT_FOUND = "ERROR: NODE NOT FOUND";
+    public static final String EDGE_ADDED = "EDGE ADDED";
+    public static final String NODE_REMOVED = "NODE REMOVED";
+    public static final String EDGE_REMOVED = "EDGE REMOVED";
+    public static final String NODE_DELIMITER = ",";
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
-    private Set<String> nodes = new HashSet<>();
+    private final Set<String> nodes = new HashSet<>();
 
-    private Map<String, Set<Edge>> edges = new ConcurrentHashMap<>();
+    private final Map<String, Set<Edge>> edges = new HashMap<>();
 
     public Graph() {
-    }
-
-    public int size() {
-        return nodes.size();
-    }
-
-    public List<String> getNodes() {
-        return new ArrayList<>(nodes);
     }
 
     public void addNode(String nodeName, Session session) {
         lock.writeLock().lock();
         try {
             if (nodes.contains(nodeName)) {
-                session.send("ERROR: NODE ALREADY EXISTS");
+                session.send(ERROR_NODE_ALREADY_EXISTS);
                 return;
             }
             nodes.add(nodeName);
-            session.send("NODE ADDED");
+            session.send(NODE_ADDED);
         } finally {
             lock.writeLock().unlock();
         }
@@ -41,13 +39,13 @@ public class Graph {
         lock.writeLock().lock();
         try {
             if (!nodes.contains(sourceNodeName) || !nodes.contains(destinationNodeName)) {
-                session.send("ERROR: NODE NOT FOUND");
+                session.send(ERROR_NODE_NOT_FOUND);
                 return;
             }
             Edge edge = new Edge(sourceNodeName, destinationNodeName, weight);
             Set<Edge> toEdges = edges.computeIfAbsent(sourceNodeName, k -> new HashSet<>());
             toEdges.add(edge);
-            session.send("EDGE ADDED");
+            session.send(EDGE_ADDED);
         } finally {
             lock.writeLock().unlock();
         }
@@ -57,14 +55,14 @@ public class Graph {
         lock.writeLock().lock();
         try {
             if (!nodes.contains(nodeName)) {
-                session.send("ERROR: NODE NOT FOUND");
+                session.send(ERROR_NODE_NOT_FOUND);
                 return;
             }
             boolean removed = nodes.remove(nodeName);
             if (removed) {
                 edges.remove(nodeName);
             }
-            session.send("NODE REMOVED");
+            session.send(NODE_REMOVED);
         } finally {
             lock.writeLock().unlock();
         }
@@ -74,7 +72,7 @@ public class Graph {
         lock.writeLock().lock();
         try {
             if (!nodes.contains(sourceNodeName) || !nodes.contains(destinationNodeName)) {
-                session.send("ERROR: NODE NOT FOUND");
+                session.send(ERROR_NODE_NOT_FOUND);
                 return;
             }
             Set<Edge> fromEdges = edges.get(sourceNodeName);
@@ -88,7 +86,7 @@ public class Graph {
                 }
 
                 fromEdges.removeAll(toRemove);
-                session.send("EDGE REMOVED");
+                session.send(EDGE_REMOVED);
             }
         } finally {
             lock.writeLock().unlock();
@@ -100,7 +98,7 @@ public class Graph {
         int weight;
         try {
             if (!nodes.contains(sourceNodeName) || !nodes.contains(destinationNodeName)) {
-                session.send("ERROR: NODE NOT FOUND");
+                session.send(ERROR_NODE_NOT_FOUND);
                 return;
             }
 
@@ -122,10 +120,8 @@ public class Graph {
     private Map<String, Integer> calculateWeightsInGraph(String sourceNodeName, String destinationNodeName, CalculationStopCheck check) {
         Map<String, Integer> weightedNodes = new HashMap<>();
         Set<String> unvisited = new HashSet<>(nodes);
-        Iterator<String> unvisitedIterator = unvisited.iterator();
 
-        while (unvisitedIterator.hasNext()) {
-            String node = unvisitedIterator.next();
+        for (String node : unvisited) {
             weightedNodes.put(node, Integer.MAX_VALUE);
         }
 
@@ -148,10 +144,7 @@ public class Graph {
     private String findNextNodeToVisit(Set<String> unvisited, Map<String, Integer> weightedNodes) {
         String smallest = null;
         int smallestWeight = Integer.MAX_VALUE;
-        Iterator<String> unvisitedIterator = unvisited.iterator();
-
-        while (unvisitedIterator.hasNext()) {
-            String toCheck = unvisitedIterator.next();
+        for (String toCheck : unvisited) {
             if (weightedNodes.get(toCheck) < smallestWeight) {
                 smallestWeight = weightedNodes.get(toCheck);
                 smallest = toCheck;
@@ -161,18 +154,12 @@ public class Graph {
     }
 
     private void visitNode(String currentNode, Set<String> unvisited, Map<String, Integer> weightedNodes) {
-        Set<String> neighbours = new HashSet<>();
         int currentNodeWeight = weightedNodes.get(currentNode);
         Set<Edge> outgoingEdges = edges.get(currentNode);
-
         if (outgoingEdges != null) {
-            Iterator<Edge> outgoingEdgesIterator = outgoingEdges.iterator();
-
-            while (outgoingEdgesIterator.hasNext()) {
-                Edge edge = outgoingEdgesIterator.next();
+            for (Edge edge : outgoingEdges) {
                 String targetNode = edge.getTo();
                 if (unvisited.contains(targetNode)) {
-                    neighbours.add(targetNode);
                     int potentialNewWeight = currentNodeWeight + edge.getWeight();
                     if (potentialNewWeight < weightedNodes.get(targetNode)) {
                         weightedNodes.put(targetNode, potentialNewWeight);
@@ -180,17 +167,20 @@ public class Graph {
                 }
             }
         }
-
         unvisited.remove(currentNode);
     }
 
     public void findNodesCloserThan(int weight, String sourceNodeName, Session session) {
         this.lock.readLock().lock();
-        List<String> nodes;
+        List<String> nodesCloserThan;
         try {
+            if (!nodes.contains(sourceNodeName)) {
+                session.send(ERROR_NODE_NOT_FOUND);
+                return;
+            }
             Map<String, Integer> weightedGraph = calculateWeightsInGraph(sourceNodeName, UUID.randomUUID().toString(), (node, weightedNodes) ->
                     weightedNodes.get(node) < weight);
-            nodes = weightedGraph.entrySet().stream().filter(entry ->
+            nodesCloserThan = weightedGraph.entrySet().stream().filter(entry ->
                             entry.getValue() < weight).filter(entry ->
                             !(entry.getKey()).equals(sourceNodeName))
                     .map(Map.Entry::getKey)
@@ -199,7 +189,7 @@ public class Graph {
         } finally {
             this.lock.readLock().unlock();
         }
-        session.send(String.join(",", nodes));
+        session.send(String.join(NODE_DELIMITER, nodesCloserThan));
     }
 
     interface CalculationStopCheck {
