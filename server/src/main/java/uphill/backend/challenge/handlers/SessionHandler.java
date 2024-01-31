@@ -21,6 +21,7 @@ public class SessionHandler implements Runnable {
     public static final String SORRY_I_DID_NOT_UNDERSTAND_THAT = "SORRY, I DID NOT UNDERSTAND THAT";
     public static final String HI_I_AM_COMMAND = "HI, I AM ";
     public static final String SOME_ERROR_OCCURRED_WHILE_CLOSING_SOCKET = "Some error occurred while closing socket -> ";
+    public static final String CLIENT_DISCONNECTED = "Client disconnected. Session id: ";
 
     private final Socket clientSocket;
     private final UUID sessionId;
@@ -51,18 +52,20 @@ public class SessionHandler implements Runnable {
             Session session = new Session(sessionId, writer, lastActivityTime);
             sessions.put(sessionId, session);
             writer.println(HI_I_AM_COMMAND + sessionId);
+            LOGGER.info("Client connected with session id: '" + sessionId + "'");
 
             String clientMessage;
             while ((clientMessage = reader.readLine()) != null) {
+                LOGGER.debug("Read command: '" + clientMessage + "'");
                 lastActivityTime = System.currentTimeMillis();
                 handleCommand(session, clientMessage);
             }
         } catch (IOException e) {
-            LOGGER.info("Client disconnected (" + e.getMessage() + ")");
+            LOGGER.error("Some error occurred and client disconnected. (" + e.getMessage() + ")");
         } finally {
             try {
                 clientSocket.close();
-                LOGGER.info("Client disconnected");
+                LOGGER.info(CLIENT_DISCONNECTED + "'" + sessionId + "'");
             } catch (IOException e) {
                 LOGGER.error(SOME_ERROR_OCCURRED_WHILE_CLOSING_SOCKET + e.getMessage());
             }
