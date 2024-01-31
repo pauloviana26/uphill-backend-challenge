@@ -43,7 +43,7 @@
     </dependencies>
 
     <build>
-        <finalName>server-1.0</finalName>
+        <finalName>server</finalName>
         <plugins>
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
