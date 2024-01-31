@@ -12,7 +12,9 @@ To build the server from source code, follow these steps:
   - ./mvnw clean package
 
 ## Running the Server
-To run the server, execute the following command:
+After building the project using Maven, the executable JAR file is generated in the target folder. You can find the JAR file named server.jar in the target directory.
+To run the server, execute the following commands:
+  - cd target
   - java -jar server.jar
     ### Options
   - -d or --debug: Enable debug mode for additional logging.
