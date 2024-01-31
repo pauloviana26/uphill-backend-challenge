@@ -117,7 +117,7 @@ public class Graph {
         session.send(String.valueOf(weight));
     }
 
-    private Map<String, Integer> calculateWeightsInGraph(String sourceNodeName, String destinationNodeName, CalculationStopCheck check) {
+    private Map<String, Integer> calculateWeightsInGraph(String sourceNodeName, String destinationNodeName, StopCalculationCheck check) {
         Map<String, Integer> weightedNodes = new HashMap<>();
         Set<String> unvisited = new HashSet<>(nodes);
 
@@ -192,7 +192,7 @@ public class Graph {
         session.send(String.join(NODE_DELIMITER, nodesCloserThan));
     }
 
-    interface CalculationStopCheck {
-        boolean shouldContinue(String var1, Map<String, Integer> var2);
+    interface StopCalculationCheck {
+        boolean shouldContinue(String node, Map<String, Integer> weightedNode);
     }
 }
