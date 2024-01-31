@@ -1,5 +1,6 @@
 package uphill.backend.challenge.handlers;
 
+import org.apache.log4j.Logger;
 import uphill.backend.challenge.model.Graph;
 import uphill.backend.challenge.model.Session;
 
@@ -12,7 +13,15 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import static uphill.backend.challenge.handlers.CommandHandler.*;
+
 public class SessionHandler implements Runnable {
+
+    private static final Logger LOGGER = Logger.getLogger(SessionHandler.class);
+    public static final String SORRY_I_DID_NOT_UNDERSTAND_THAT = "SORRY, I DID NOT UNDERSTAND THAT";
+    public static final String HI_I_AM_COMMAND = "HI, I AM ";
+    public static final String SOME_ERROR_OCCURRED_WHILE_CLOSING_SOCKET = "Some error occurred while closing socket -> ";
+    public static final String CLIENT_DISCONNECTED = "Client disconnected. Session id: ";
 
     private final Socket clientSocket;
     private final UUID sessionId;
@@ -42,39 +51,23 @@ public class SessionHandler implements Runnable {
         ) {
             Session session = new Session(sessionId, writer, lastActivityTime);
             sessions.put(sessionId, session);
-            writer.println("HI, I AM " + sessionId);
+            writer.println(HI_I_AM_COMMAND + sessionId);
+            LOGGER.info("Client connected with session id: '" + sessionId + "'");
 
             String clientMessage;
             while ((clientMessage = reader.readLine()) != null) {
-                // Reset session timeout
+                LOGGER.debug("Read command: '" + clientMessage + "'");
                 lastActivityTime = System.currentTimeMillis();
                 handleCommand(session, clientMessage);
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            LOGGER.error("Some error occurred and client disconnected. (" + e.getMessage() + ")");
         } finally {
             try {
                 clientSocket.close();
+                LOGGER.info(CLIENT_DISCONNECTED + "'" + sessionId + "'");
             } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-    private void checkSessionTimeout() {
-        while (true) {
-            if (System.currentTimeMillis() - lastActivityTime > SESSION_TIMEOUT) {
-                try {
-                    clientSocket.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-                break;
-            }
-            try {
-                Thread.sleep(1000); // Check every second
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+                LOGGER.error(SOME_ERROR_OCCURRED_WHILE_CLOSING_SOCKET + e.getMessage());
             }
         }
     }
@@ -85,112 +78,43 @@ public class SessionHandler implements Runnable {
 
         switch (keyword) {
             case "HI":
-                handleHiCommand(session, parts);
+                handleHiCommand(session, parts, sessions);
                 break;
             case "BYE":
-                handleByeCommand(session, parts);
+                handleByeCommand(session, parts, sessions);
                 break;
             case "ADD":
-                handleAddCommand(session, parts);
+                handleAddCommand(session, parts, graph);
                 break;
             case "REMOVE":
-                handleRemoveCommand(session, parts);
+                handleRemoveCommand(session, parts, graph);
                 break;
             case "SHORTEST":
-                handleShortestPathCommand(session, parts);
+                handleShortestPathCommand(session, parts, graph);
                 break;
             case "CLOSER":
-                handleCloserThanCommand(session, parts);
+                handleCloserThanCommand(session, parts, graph);
                 break;
             default:
-                session.send("SORRY, I DID NOT UNDERSTAND THAT");
+                session.send(SORRY_I_DID_NOT_UNDERSTAND_THAT);
         }
     }
 
-    private void handleCloserThanCommand(Session session, String[] parts) {
-        if (parts.length < 3) {
-            session.send("SORRY, I DID NOT UNDERSTAND THAT");
-            return;
-        }
-        String weight = parts[2];
-        String sourceNodeName = parts[3];
-        graph.findNodesCloserThan(Integer.parseInt(weight), sourceNodeName, session);
-    }
-
-    private void handleShortestPathCommand(Session session, String[] parts) {
-        if (parts.length < 3) {
-            session.send("SORRY, I DID NOT UNDERSTAND THAT");
-            return;
-        }
-        String sourceNodeName = parts[2];
-        String destinationNodeName = parts[3];
-        graph.shortestPath(sourceNodeName, destinationNodeName, session);
-    }
-
-    private void handleRemoveCommand(Session session, String[] parts) {
-        if (parts.length < 2) {
-            session.send("SORRY, I DID NOT UNDERSTAND THAT");
-            return;
-        }
-        String action = parts[1];
-        String nodeName;
-        if (action.equals("NODE")) {
-            nodeName = parts[2];
-            graph.removeNode(nodeName, session);
-        } else if (action.equals("EDGE")) {
-            if (parts.length < 4) {
-                session.send("SORRY, I DID NOT UNDERSTAND THAT");
-                return;
+    private void checkSessionTimeout() {
+        while (true) {
+            if (System.currentTimeMillis() - lastActivityTime > SESSION_TIMEOUT) {
+                try {
+                    clientSocket.close();
+                } catch (IOException e) {
+                    LOGGER.error(SOME_ERROR_OCCURRED_WHILE_CLOSING_SOCKET + e.getMessage());
+                }
+                break;
             }
-            String sourceNodeName = parts[2];
-            String destinationNodeName = parts[3];
-            graph.removeEdge(sourceNodeName, destinationNodeName, session);
-        } else {
-            session.send("SORRY, I DID NOT UNDERSTAND THAT");
-        }
-    }
-
-    private void handleAddCommand(Session session, String[] parts) {
-        if (parts.length < 2) {
-            session.send("SORRY, I DID NOT UNDERSTAND THAT");
-            return;
-        }
-
-        String action = parts[1];
-        String nodeName = parts[2];
-        if (action.equals("NODE")) {
-            graph.addNode(nodeName, session);
-        } else if (action.equals("EDGE")) {
-            if (parts.length < 4) {
-                session.send("SORRY, I DID NOT UNDERSTAND THAT");
-                return;
+            try {
+                Thread.sleep(1000); // Check every second
+            } catch (InterruptedException e) {
+                LOGGER.error(e.getMessage());
             }
-            String sourceNodeName = parts[2];
-            String destinationNodeName = parts[3];
-            int weight = Integer.parseInt(parts[4]);
-            graph.addEdge(sourceNodeName, destinationNodeName, weight, session);
-        } else {
-            session.send("SORRY, I DID NOT UNDERSTAND THAT");
-        }
-    }
-
-    private static void handleHiCommand(Session session, String[] parts) {
-        if (parts.length == 4 && parts[1].equals("I") && parts[2].equals("AM")) {
-            String name = parts[3];
-            session.setName(name);
-            session.send("HI " + name);
-            sessions.remove(session.getSessionId());
-        } else {
-            session.send("SORRY, I DID NOT UNDERSTAND THAT");
-        }
-    }
-
-    private static void handleByeCommand(Session session, String[] parts) {
-        if (parts.length == 2 && parts[1].equals("MATE!")) {
-            session.send("BYE " + session.getName() + ", WE SPOKE FOR " + session.getSessionDuration() + " MS");
-            sessions.remove(session.getSessionId());
-        } else {
-            session.send("SORRY, I DID NOT UNDERSTAND THAT");
         }
     }
 }
